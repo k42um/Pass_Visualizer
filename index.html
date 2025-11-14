@@ -194,7 +194,26 @@ Line 2"></textarea>
 
             <!-- パス詳細 (最初は非表示) -->
             <div id="pass-detail-container" class="mt-10 hidden">
-                <h3 class="text-2xl font-semibold mb-6">パス詳細</h3>
+                <!-- ヘッダーとダウンロードボタン -->
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-semibold">パス詳細</h3>
+                    <div class="flex gap-3">
+                        <button id="download-image-button" title="画像 (PNG) としてダウンロード" class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition duration-150">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                        </button>
+                        <button id="download-pdf-button" title="PDFとしてダウンロード" class="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition duration-150">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ダウンロードエラー表示用 -->
+                <p id="download-error-message" class="text-red-500 text-center mb-4 hidden"></p>
+
                 
                 <div id="pass-detail-text" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 items-stretch">
                     <!-- ここに詳細が挿入されます -->
@@ -301,7 +320,9 @@ Line 2"></textarea>
     </div>
 
 
-    <!-- 軌道計算ライブラリ (satellite.js) -->
+    <!-- 描画・軌道計算ライブラリ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://unpkg.com/satellite.js@4.1.4/dist/satellite.min.js"></script>
 
     <!-- 完全なJavaScriptコード -->
@@ -346,7 +367,9 @@ Line 2"></textarea>
             const passChartCtx = passChartCanvas.getContext('2d');
             const skyPassCtx = skyPassCanvas.getContext('2d');
             
-            // ツールチップ関連のDOM取得は削除されました
+            const downloadImageButton = document.getElementById('download-image-button');
+            const downloadPdfButton = document.getElementById('download-pdf-button');
+            const downloadErrorMessage = document.getElementById('download-error-message');
 
             const settingsModal = document.getElementById('settings-modal');
             const closeSettingsButton = document.getElementById('close-settings-button');
@@ -362,8 +385,7 @@ Line 2"></textarea>
             let isDataFetched = false; 
             let selectedTLE = { name: '', line1: '', line2: '' }; 
             let currentPasses = []; 
-            // ツールチップ用の時系列データ変数は削除されました
-
+            
             // --- イベントリスナー ---
 
             // CelesTrakボタンはキャッシュチェック関数を呼ぶ
@@ -419,9 +441,11 @@ Line 2"></textarea>
                     settingsModal.classList.add('hidden');
                 }
             });
-            
-            // 仰角グラフのツールチップ用イベントリスナーは削除されました
 
+            // ダウンロードボタンのリスナー
+            downloadImageButton.addEventListener('click', downloadPassDetailAsImage);
+            downloadPdfButton.addEventListener('click', downloadPassDetailAsPDF);
+            
             // --- 画面切り替え関数 ---
 
             function showSelectionUI() {
@@ -929,6 +953,7 @@ Line 2"></textarea>
 
             function showPassDetails(pass) {
                 passDetailContainer.classList.remove('hidden');
+                downloadErrorMessage.classList.add('hidden'); // エラーメッセージをクリア
                 
                 const aosTime = pass.timelineData[0];
                 const losTime = pass.timelineData[pass.timelineData.length - 1];
@@ -978,12 +1003,12 @@ Line 2"></textarea>
             function clearPassDetails() {
                 passDetailContainer.classList.add('hidden');
                 passDetailText.innerHTML = '';
+                downloadErrorMessage.classList.add('hidden'); // エラーメッセージをクリア
                 passChartCtx.clearRect(0, 0, passChartCanvas.width, passChartCanvas.height);
                 skyPassCtx.clearRect(0, 0, skyPassCanvas.width, skyPassCanvas.height);
                 document.querySelectorAll('.pass-list-row.selected').forEach(r => {
                     r.classList.remove('selected');
                 });
-                // ツールチップ関連のクリア処理は削除されました
             }
 
             // --- グラフ描画関数 (Canvas) ---
@@ -992,8 +1017,6 @@ Line 2"></textarea>
                 const canvas = passChartCanvas;
                 const ctx = passChartCtx;
                 const timeline = pass.timelineData;
-                
-                // ツールチップ用データ保存は削除されました
                 
                 if (!timeline || timeline.length === 0) {
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1281,6 +1304,117 @@ Line 2"></textarea>
                 const index = Math.round(az / 22.5) % 16;
                 return directions[index];
             }
+
+
+            // --- ダウンロード関数 (新規追加) ---
+
+            /**
+             * html2canvas を使ってパス詳細をキャプチャする共通関数
+             * @returns {Promise<HTMLCanvasElement>}
+             */
+            function capturePassDetail() {
+                // キャプチャ対象の要素
+                const captureTarget = document.getElementById('pass-detail-container');
+                
+                // html2canvas オプション
+                const options = {
+                    scale: 2, // 高解像度化
+                    useCORS: true, 
+                    backgroundColor: '#ffffff', // 背景を白に
+                    // スクロール位置を考慮
+                    scrollX: 0,
+                    scrollY: -window.scrollY,
+                };
+
+                return html2canvas(captureTarget, options);
+            }
+
+            /**
+             * パス詳細をPNG画像としてダウンロード
+             */
+            async function downloadPassDetailAsImage() {
+                if (!selectedTLE.name) return;
+                downloadErrorMessage.classList.add('hidden');
+                
+                try {
+                    const canvas = await capturePassDetail();
+                    const dataUrl = canvas.toDataURL('image/png');
+                    
+                    const link = document.createElement('a');
+                    link.href = dataUrl;
+                    link.download = `${selectedTLE.name.replace(/\s+/g, '_')}_pass_detail.png`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                } catch (error) {
+                    console.error("画像キャプチャに失敗:", error);
+                    downloadErrorMessage.textContent = "画像の生成に失敗しました。コンソールを確認してください。";
+                    downloadErrorMessage.classList.remove('hidden');
+                    setTimeout(() => downloadErrorMessage.classList.add('hidden'), 5000);
+                }
+            }
+
+            /**
+             * パス詳細をPDFとしてダウンロード
+             */
+            async function downloadPassDetailAsPDF() {
+                if (!selectedTLE.name) return;
+                downloadErrorMessage.classList.add('hidden');
+
+                try {
+                    // jsPDFをwindowオブジェクトから取得
+                    const { jsPDF } = window.jspdf;
+                    const canvas = await capturePassDetail();
+                    const imgData = canvas.toDataURL('image/jpeg', 0.8);
+                    
+                    const canvasWidth = canvas.width;
+                    const canvasHeight = canvas.height;
+                    
+                    // A4サイズ (mm) 横
+                    const a4Width = 297;
+                    const a4Height = 210;
+                    
+                    const pdf = new jsPDF({
+                        orientation: 'landscape',
+                        unit: 'mm',
+                        format: 'a4'
+                    });
+
+                    // A4横 (297x210) に余白(5mm)を考慮
+                    const margin = 5;
+                    const usableWidth = a4Width - (margin * 2);
+                    const usableHeight = a4Height - (margin * 2);
+                    
+                    const canvasAspect = canvasWidth / canvasHeight;
+                    let pdfWidth, pdfHeight;
+
+                    // キャンバスのアスペクト比がA4横より横長か？
+                    if (canvasAspect > (usableWidth / usableHeight)) {
+                        // 幅を合わせる
+                        pdfWidth = usableWidth;
+                        pdfHeight = pdfWidth / canvasAspect;
+                    } else {
+                        // 高さを合わせる
+                        pdfHeight = usableHeight;
+                        pdfWidth = pdfHeight * canvasAspect;
+                    }
+
+                    // 中央揃えで配置
+                    const x = (a4Width - pdfWidth) / 2;
+                    const y = (a4Height - pdfHeight) / 2;
+                    
+                    pdf.addImage(imgData, 'JPEG', x, y, pdfWidth, pdfHeight);
+                    pdf.save(`${selectedTLE.name.replace(/\s+/g, '_')}_pass_detail.pdf`);
+
+                } catch (error) {
+                    console.error("PDFキャプチャに失敗:", error);
+                    downloadErrorMessage.textContent = "PDFの生成に失敗しました。コンソールを確認してください。";
+                    downloadErrorMessage.classList.remove('hidden');
+                    setTimeout(() => downloadErrorMessage.classList.add('hidden'), 5000);
+                }
+            }
+
 
         }; // window.onload 終了
     </script>
