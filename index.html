@@ -11,18 +11,23 @@
             max-height: 40vh; /* 画面の高さの40%を最大値に */
         }
         /* スクロールバーのスタイルを（控えめに）適用 */
-        #satellite-list-container::-webkit-scrollbar {
+        #satellite-list-container::-webkit-scrollbar,
+        /* 予測パスリストのスクロールバーにもスタイルを適用 */
+        #pass-list-table-wrapper::-webkit-scrollbar {
             width: 8px;
         }
-        #satellite-list-container::-webkit-scrollbar-track {
+        #satellite-list-container::-webkit-scrollbar-track,
+        #pass-list-table-wrapper::-webkit-scrollbar-track {
             background: #f1f1f1;
             border-radius: 10px;
         }
-        #satellite-list-container::-webkit-scrollbar-thumb {
+        #satellite-list-container::-webkit-scrollbar-thumb,
+        #pass-list-table-wrapper::-webkit-scrollbar-thumb {
             background: #d1d5db; /* gray-300 */
             border-radius: 10px;
         }
-        #satellite-list-container::-webkit-scrollbar-thumb:hover {
+        #satellite-list-container::-webkit-scrollbar-thumb:hover,
+        #pass-list-table-wrapper::-webkit-scrollbar-thumb:hover {
             background: #9ca3af; /* gray-400 */
         }
         /* 選択されたパスリストの行のスタイル */
@@ -54,25 +59,34 @@
     </header>
 
     <!-- メインコンテンツ -->
-    <main class="container mx-auto px-6 py-8 mt-8 flex-grow">
+    <!-- 変更点: flex flex-col を追加して、flex-grow が効くようにする -->
+    <main class="container mx-auto px-6 py-8 mt-8 flex-grow flex flex-col">
         
         <!-- TLE 取得方法の選択 -->
-        <div id="selection-ui" class="bg-white p-8 rounded-lg shadow-xl mb-8">
-            <div class="grid md:grid-cols-2 gap-6">
-                <!-- 選択肢 1: Celestrakから取得 -->
-                <button id="fetch-celestrak" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-6 px-8 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1">
-                    <span class="text-xl">CelesTrakから取得</span>
-                </button>
+        <!-- 変更点: flex-grow と flex flex-col justify-center を追加 -->
+        <div id="selection-ui" class="flex-grow flex flex-col justify-center mb-8">
+            <div class="bg-white p-8 rounded-lg shadow-xl text-center">
+                <!-- 変更点: タイトルとサブタイトルを追加 -->
+                <h2 class="text-4xl font-bold text-gray-900 mb-2">Satellite Pass Viewer</h2>
+                <p class="text-lg text-gray-600 mb-10">衛星からのパスを受信してみませんか？</p>
 
-                <!-- 選択肢 2: TLEを手動で入力 -->
-                <button id="manual-tle" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-6 px-8 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1">
-                    <span class="text-xl">TLEを手動入力</span>
-                </button>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <!-- 選択肢 1: Celestrakから取得 -->
+                    <button id="fetch-celestrak" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-6 px-8 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1">
+                        <span class="text-xl">CelesTrakから取得</span>
+                    </button>
+
+                    <!-- 選択肢 2: TLEを手動で入力 -->
+                    <button id="manual-tle" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-6 px-8 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:-translate-y-1">
+                        <span class="text-xl">TLEを手動入力</span>
+                    </button>
+                </div>
             </div>
         </div>
 
         <!-- 「戻る」ボタン -->
-        <button id="back-to-selection" class="hidden mb-6 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow transition duration-300">
+        <!-- 変更点: 'self-start' を追加し、ボタンが横幅いっぱいに広がるのを防ぎ、左寄せにする -->
+        <button id="back-to-selection" class="hidden mb-6 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow transition duration-300 self-start">
             &larr; 戻る
         </button>
 
@@ -147,9 +161,11 @@ Line 2"></textarea>
                     <span id="pass-list-count" class="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full"></span>
                 </div>
                 
-                <div class="overflow-x-auto">
+                <!-- max-h-[40vh] と overflow-y-auto を追加。スクロールバーのスタイル適用のためにIDも追加 -->
+                <div id="pass-list-table-wrapper" class="overflow-x-auto max-h-[40vh] overflow-y-auto border border-gray-200 rounded-lg">
                     <table id="pass-list-table" class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
+                        <!-- a-indexを確保しつつヘッダーを固定 -->
+                        <thead class="bg-gray-50 sticky top-0 z-10">
                             <tr>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">AOS (開始)</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MAX (最大仰角)</th>
@@ -174,14 +190,14 @@ Line 2"></textarea>
                     <!-- ここに詳細が挿入されます -->
                 </div>
 
-                <!-- グラフコンテナ -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- 仰角グラフ (縦) -->
-                    <div class="lg:col-span-2 bg-gray-50 p-4 rounded-lg shadow-inner relative">
+                <!-- グラフコンテナ (lg:grid-cols-3 から lg:grid-cols-5 に変更) -->
+                <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                    <!-- 仰角グラフ (縦) (lg:col-span-2 から lg:col-span-3 に変更) -->
+                    <div class="lg:col-span-3 bg-gray-50 p-4 rounded-lg shadow-inner relative">
                         <canvas id="pass-chart-canvas" class="w-full" height="150"></canvas>
                     </div>
-                    <!-- スカイパスグラフ (極座標) -->
-                    <div class="lg:col-span-1 bg-gray-50 p-4 rounded-lg shadow-inner flex justify-center items-center">
+                    <!-- スカイパスグラフ (極座標) (lg:col-span-1 から lg:col-span-2 に変更) -->
+                    <div class="lg:col-span-2 bg-gray-50 p-4 rounded-lg shadow-inner flex justify-center items-center">
                         <canvas id="sky-pass-canvas" width="350" height="350"></canvas>
                     </div>
                 </div>
@@ -224,10 +240,10 @@ Line 2"></textarea>
                             <label for="obs-lon" class="text-sm font-medium text-gray-700">経度 (°) :</label>
                             <input type="number" id="obs-lon" value="140.10" step="0.1" class="w-full p-2 border border-gray-300 rounded-lg text-sm">
                         </div>
-                        <!-- 高度の入力欄を追加 -->
+                        <!-- 高度の入力欄 (m単位) -->
                         <div class="flex flex-col gap-2">
-                            <label for="obs-alt" class="text-sm font-medium text-gray-700">高度 (km) :</label>
-                            <input type="number" id="obs-alt" value="0.06" step="0.01" class="w-full p-2 border border-gray-300 rounded-lg text-sm">
+                            <label for="obs-alt" class="text-sm font-medium text-gray-700">高度 (m) :</label>
+                            <input type="number" id="obs-alt" value="60" step="10" class="w-full p-2 border border-gray-300 rounded-lg text-sm">
                         </div>
                     </div>
                 </div>
@@ -273,11 +289,12 @@ Line 2"></textarea>
 
 
     <!-- 軌道計算ライブラリ (satellite.js) -->
+    <!-- 変更点: unpkg.com に変更 -->
     <script src="https://unpkg.com/satellite.js@4.1.4/dist/satellite.min.js"></script>
 
     <!-- 完全なJavaScriptコード -->
     <script>
-        // satellite.jsがロードされた後に実行する
+        // 変更点: DOMContentLoaded ではなく window.onload を使用
         window.onload = () => {
 
             // --- DOM要素の取得 ---
@@ -465,7 +482,7 @@ Line 2"></textarea>
 
             // CelesTrakからTLEデータを取得
             async function fetchTLEData(group) {
-                // CORS対応の .com ドメインに直接アクセス
+                // 変更点: プロキシ(api.allorigins.win) を削除し、celestrak.com に直接アクセス
                 const url = `https://celestrak.com/NORAD/elements/gp.php?GROUP=${group}&FORMAT=tle`;
                 
                 loadingSpinner.classList.remove('hidden');
@@ -474,7 +491,8 @@ Line 2"></textarea>
                 satelliteSearch.disabled = true;
 
                 try {
-                    const response = await fetch(url);
+                    // 変更点: 'no-cache' を追加
+                    const response = await fetch(url, { cache: 'no-cache' });
                     if (!response.ok) {
                         throw new Error(`Network response was not ok: ${response.status} ${response.statusText}`);
                     }
@@ -533,6 +551,7 @@ Line 2"></textarea>
                      return { name: '', line1: '', line2: '' };
                 }
                 try {
+                    // 変更点: window.satellite を使用
                     const satrec = window.satellite.twoline2satrec(line1, line2);
                     if (satrec && !satrec.error) {
                          return { name, line1, line2 };
@@ -613,16 +632,17 @@ Line 2"></textarea>
                     const durationDays = parseInt(durationSelect.value, 10);
                     const obsLat = parseFloat(obsLatInput.value);
                     const obsLon = parseFloat(obsLonInput.value);
-                    const obsAlt = parseFloat(obsAltInput.value); // 高度を取得
+                    const obsAltM = parseFloat(obsAltInput.value); // 高度を (m) で取得
+                    const obsAltKm = obsAltM / 1000.0; // (km) に変換
 
-                    if (isNaN(obsLat) || isNaN(obsLon) || isNaN(obsAlt)) {
+                    if (isNaN(obsLat) || isNaN(obsLon) || isNaN(obsAltKm)) { // (m) -> (Km) の変換を反映
                         throw new Error("緯度・経度・高度の値が無効です。");
                     }
 
                     const observerGd = {
                         latitude: window.satellite.degreesToRadians(obsLat),
                         longitude: window.satellite.degreesToRadians(obsLon),
-                        height: obsAlt // 高度を (km) で設定
+                        height: obsAltKm // 高度を (km) で設定
                     };
 
                     currentPasses = calculateRealPasses(selectedTLE, observerGd, durationDays);
@@ -652,6 +672,7 @@ Line 2"></textarea>
              * @returns {Array} 計算されたパスの配列
              */
             function calculateRealPasses(tle, observerGd, durationDays) {
+                // 変更点: window.satellite を使用
                 const satrec = window.satellite.twoline2satrec(tle.line1, tle.line2);
                 if (!satrec || satrec.error) {
                     let errorMsg = `Satrecの初期化に失敗しました。`;
@@ -672,6 +693,7 @@ Line 2"></textarea>
 
                 for (let d = new Date(now.getTime()); d < endTime; d.setMinutes(d.getMinutes() + scanIntervalMinutes)) {
                     
+                    // 変更点: window.satellite を使用
                     const positionAndVelocity = window.satellite.propagate(satrec, d);
                     
                     if (!positionAndVelocity || !positionAndVelocity.position || !positionAndVelocity.velocity) {
@@ -679,6 +701,7 @@ Line 2"></textarea>
                         throw new Error(`衛星[${tle.name}]の伝播(propagate)に失敗しました。`);
                     }
                     
+                    // 変更点: window.satellite を使用
                     const gmst = window.satellite.gstime(d);
                     const positionEcf = window.satellite.eciToEcf(positionAndVelocity.position, gmst);
                     
@@ -877,7 +900,7 @@ Line 2"></textarea>
                 canvas.height = rect.height * dpr;
                 ctx.scale(dpr, dpr);
                 const width = rect.width;
-                const height = rect.height; // height="250" を反映
+                const height = rect.height; // height="150" を反映
 
                 ctx.clearRect(0, 0, width, height);
 
@@ -949,8 +972,9 @@ Line 2"></textarea>
                 ctx.fillStyle = 'rgba(59, 130, 246, 0.1)';
                 ctx.fill();
 
+                // 変更点: 方位コンパスのサイズを 12, 11px に変更
                 ctx.font = '11px sans-serif';
-                const azRadius = 12;
+                const azRadius = 12; 
                 const azY = padding.top - 20;
 
                 if (plotWidth < 50) return;
@@ -1010,7 +1034,7 @@ Line 2"></textarea>
                 }
 
                 const dpr = window.devicePixelRatio || 1;
-                const size = 350;
+                const size = 350; // 変更点: 350px
                 canvas.width = size * dpr;
                 canvas.height = size * dpr;
                 canvas.style.width = `${size}px`;
@@ -1025,6 +1049,7 @@ Line 2"></textarea>
 
                 const getCoords = (el, az) => {
                     const radius = maxRadius * (1 - el / 90);
+                    // 変更点: window.satellite を使用
                     const angle = window.satellite.degreesToRadians(az - 90); 
                     
                     return {
@@ -1052,6 +1077,7 @@ Line 2"></textarea>
                 ctx.fillText('90°', center, center - 8);
 
                 ['N', 'E', 'S', 'W'].forEach((dir, i) => {
+                    // 変更点: window.satellite を使用
                     const angle = window.satellite.degreesToRadians(i * 90 - 90);
                     const x = center + (maxRadius + 10) * Math.cos(angle);
                     const y = center + (maxRadius + 10) * Math.sin(angle);
@@ -1108,8 +1134,10 @@ Line 2"></textarea>
                     const maxPoint = getCoords(maxElPoint.elevation, maxElPoint.azimuth);
                     ctx.beginPath();
                     ctx.arc(maxPoint.x, maxPoint.y, 6, 0, 2 * Math.PI);
-                    ctx.fillStyle = '#f59e0b';
+                    ctx.fillStyle = '#f59e0b'; // amber-500
                     ctx.fill();
+                    // 修正点: 'MAX' のテキストを描画
+                    ctx.fillText('MAX', maxPoint.x, maxPoint.y - 15);
                 }
             }
 
