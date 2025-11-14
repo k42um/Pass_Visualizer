@@ -48,8 +48,6 @@
             100% { transform: rotate(360deg); }
         }
         
-        /* ツールチップ関連のスタイルは削除されました */
-
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans flex flex-col min-h-full">
@@ -224,7 +222,6 @@ Line 2"></textarea>
                     <!-- 仰角グラフ (lg:col-span-3) -->
                     <div class="lg:col-span-3 bg-gray-50 p-4 rounded-lg shadow-inner relative">
                         <canvas id="pass-chart-canvas" class="w-full" height="150"></canvas>
-                        <!-- ツールチップ用HTMLは削除されました -->
                     </div>
                     
                     <!-- スカイパス (lg:col-span-2) -->
@@ -238,9 +235,6 @@ Line 2"></textarea>
 
     </main>
     
-    <!-- ツールチップ用HTMLは削除されました -->
-
-
     <!-- フッター -->
     <footer class="bg-white shadow-inner mt-12 py-6">
         <div class="container mx-auto px-6 text-center text-gray-600 text-sm">
@@ -327,7 +321,11 @@ Line 2"></textarea>
 
     <!-- 完全なJavaScriptコード -->
     <script>
-        window.onload = () => {
+        window.onload = async () => { // 修正: async に
+
+            // --- URLパラメータの解析 (新規追加) ---
+            const urlParams = new URLSearchParams(window.location.search);
+            const satelliteNameFromUrl = urlParams.get('satellite');
 
             // --- DOM要素の取得 ---
             const selectionUI = document.getElementById('selection-ui');
@@ -388,10 +386,10 @@ Line 2"></textarea>
             
             // --- イベントリスナー ---
 
-            // CelesTrakボタンはキャッシュチェック関数を呼ぶ
-            fetchCelestrakButton.addEventListener('click', () => {
+            // CelesTrakボタンはキャッシュチェック関数を呼ぶ (修正: async)
+            fetchCelestrakButton.addEventListener('click', async () => {
                 showInputUI('celestrak');
-                checkAndFetchTLEData(); // fetchTLEData() ではなく、こちらを呼ぶ
+                await checkAndFetchTLEData(); // 修正: await
             });
 
             manualTleButton.addEventListener('click', () => {
@@ -445,6 +443,14 @@ Line 2"></textarea>
             // ダウンロードボタンのリスナー
             downloadImageButton.addEventListener('click', downloadPassDetailAsImage);
             downloadPdfButton.addEventListener('click', downloadPassDetailAsPDF);
+
+            // --- 起動時処理 (URLパラメータチェック) (修正: await) ---
+            if (satelliteNameFromUrl) {
+                // URLに衛星名が指定されている場合、CelesTrakのUIを表示
+                showInputUI('celestrak');
+                // キャッシュをチェックし、データ取得後に指定された衛星を検索
+                await checkAndFetchTLEData(satelliteNameFromUrl); // 修正: await
+            }
             
             // --- 画面切り替え関数 ---
 
@@ -454,6 +460,12 @@ Line 2"></textarea>
                 visualizationArea.classList.add('hidden');
                 backToSelectionButton.classList.add('hidden');
                 resetForms();
+                
+                // URLパラメータをクリア (任意)
+                if (window.history.pushState) {
+                    const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+                    window.history.pushState({path: cleanUrl}, '', cleanUrl);
+                }
             }
 
             function showInputUI(mode) {
@@ -494,12 +506,13 @@ Line 2"></textarea>
                 clearPassDetails(); 
             }
 
-            // --- CelesTrak関連関数 (キャッシュロジック追加) ---
+            // --- CelesTrak関連関数 (キャッシュロジック修正) ---
 
             /**
-             * TLEデータのキャッシュを確認し、必要なら取得する
+             * TLEデータのキャッシュを確認し、必要なら取得する (修正: async)
+             * @param {string} [satelliteToSelect] - データロード後に自動選択する衛星名
              */
-            function checkAndFetchTLEData() {
+            async function checkAndFetchTLEData(satelliteToSelect = null) { // 修正: async
                 const cacheKey = 'tleDataCache';
                 let cachedData = null;
 
@@ -517,14 +530,19 @@ Line 2"></textarea>
                     allSatellites = parseTLEData(cachedData.data);
                     isDataFetched = true;
                     displaySatellites(allSatellites);
-                    displayLastFetchTime(cachedData.timestamp); // 最終取得時刻を表示
+                    displayLastFetchTime(cachedData.timestamp);
                     
                     loadingSpinner.classList.add('hidden');
                     loadingText.classList.add('hidden');
                     satelliteSearch.disabled = false;
+
+                    // URLパラメータで指定された衛星を自動選択
+                    if (satelliteToSelect) {
+                        autoSelectSatelliteByName(satelliteToSelect);
+                    }
                 } else {
                     // キャッシュが無効な場合
-                    fetchTLEData('active');
+                    await fetchTLEData('active', satelliteToSelect); // 修正: await
                 }
             }
 
@@ -552,7 +570,11 @@ Line 2"></textarea>
 
 
             // CelesTrakからTLEデータを取得 (checkAndFetchTLEDataから呼ばれる)
-            async function fetchTLEData(group) {
+            /**
+             * @param {string} group
+             * @param {string} [satelliteToSelect] - データロード後に自動選択する衛星名
+             */
+            async function fetchTLEData(group, satelliteToSelect = null) {
                 // celestrak.com に直接アクセス
                 const url = `https://celestrak.com/NORAD/elements/gp.php?GROUP=${group}&FORMAT=tle`;
                 
@@ -560,20 +582,18 @@ Line 2"></textarea>
                 loadingText.classList.remove('hidden');
                 loadingText.textContent = 'TLEデータを取得中...';
                 satelliteSearch.disabled = true;
-                lastFetchTimeContainer.classList.add('hidden'); // 取得中は非表示
+                lastFetchTimeContainer.classList.add('hidden');
 
                 try {
                     const response = await fetch(url);
                     
                     if (!response.ok) {
-                        // 403 Forbidden などのエラー
                         throw new Error(`Network response was not ok: ${response.status} ${response.statusText}`);
                     }
                     const tleData = await response.text();
                     
                     const currentTimestamp = new Date().getTime();
 
-                    // 取得成功時にLocalStorageに保存
                     try {
                         const cachePayload = {
                             timestamp: currentTimestamp,
@@ -587,19 +607,23 @@ Line 2"></textarea>
                     allSatellites = parseTLEData(tleData);
                     isDataFetched = true;
                     displaySatellites(allSatellites);
-                    displayLastFetchTime(currentTimestamp); // 最終取得時刻を表示
+                    displayLastFetchTime(currentTimestamp);
                     
                     loadingSpinner.classList.add('hidden');
                     loadingText.classList.add('hidden');
                     satelliteSearch.disabled = false;
+                    
+                    // URLパラメータで指定された衛星を自動選択
+                    if (satelliteToSelect) {
+                        autoSelectSatelliteByName(satelliteToSelect);
+                    }
 
                 } catch (error) {
                     console.error('Error fetching TLE data:', error);
                     
-                    // --- 403 Forbiddenエラー対策: 代替としてプロキシを試す ---
                     if (error.message.includes("403")) {
                         loadingText.textContent = '直接アクセスが拒否されました。プロキシ経由で再試行します...';
-                        await fetchTLEDataWithProxy(group); // 代替関数を呼ぶ
+                        await fetchTLEDataWithProxy(group, satelliteToSelect); // 引き継ぐ
                     } else {
                         loadingText.textContent = `データの取得に失敗しました: ${error.message}`;
                         loadingSpinner.classList.add('hidden');
@@ -607,9 +631,12 @@ Line 2"></textarea>
                 }
             }
 
-            // CelesTrakからプロキシ経由で取得 (fetchTLEDataが失敗した場合のフォールバック)
-            async function fetchTLEDataWithProxy(group) {
-                // api.allorigins.win プロキシを使用
+            // CelesTrakからプロキシ経由で取得 (フォールバック)
+            /**
+             * @param {string} group
+             * @param {string} [satelliteToSelect] - データロード後に自動選択する衛星名
+             */
+            async function fetchTLEDataWithProxy(group, satelliteToSelect = null) {
                 const proxiedUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://celestrak.org/NORAD/elements/gp.php?GROUP=${group}&FORMAT=tle`)}`;
                 
                 try {
@@ -622,7 +649,6 @@ Line 2"></textarea>
                     
                     const currentTimestamp = new Date().getTime();
 
-                    // 取得成功時にLocalStorageに保存
                     try {
                         const cachePayload = {
                             timestamp: currentTimestamp,
@@ -641,6 +667,11 @@ Line 2"></textarea>
                     loadingSpinner.classList.add('hidden');
                     loadingText.classList.add('hidden');
                     satelliteSearch.disabled = false;
+
+                    // URLパラメータで指定された衛星を自動選択
+                    if (satelliteToSelect) {
+                        autoSelectSatelliteByName(satelliteToSelect);
+                    }
 
                 } catch (proxyError) {
                     console.error('Error fetching TLE data via proxy:', proxyError);
@@ -765,6 +796,34 @@ Line 2"></textarea>
                 }
             }
 
+            /**
+             * URLパラメータから渡された名前で衛星を自動選択する (新規追加)
+             * @param {string} satelliteName
+             */
+            function autoSelectSatelliteByName(satelliteName) {
+                if (!satelliteName || !allSatellites.length) {
+                    return;
+                }
+                
+                // 完全一致または前方一致で検索
+                const normalizedName = satelliteName.toLowerCase();
+                let foundSat = allSatellites.find(sat => sat.name.toLowerCase() === normalizedName);
+                
+                if (!foundSat) {
+                    foundSat = allSatellites.find(sat => sat.name.toLowerCase().startsWith(normalizedName));
+                }
+
+                if (foundSat) {
+                    // 見つかった衛星を選択し、可視化画面に移動
+                    selectSatellite(foundSat);
+                } else {
+                    // 見つからなかった場合、検索ボックスに名前を入れておく
+                    satelliteSearch.value = satelliteName;
+                    const filteredSats = allSatellites.filter(sat => sat.name.toLowerCase().includes(normalizedName));
+                    displaySatellites(filteredSats);
+                }
+            }
+
             // --- 可視化エリア関数 ---
 
             function updateVisualizationArea() {
@@ -867,7 +926,6 @@ Line 2"></textarea>
                             };
                         }
                         
-                        // ツールチップ機能は削除されましたが、グラフ描画のためにデータは保持します
                         currentPass.timelineData.push({
                             time: new Date(d.getTime()),
                             elevation: elevation,
@@ -1306,7 +1364,7 @@ Line 2"></textarea>
             }
 
 
-            // --- ダウンロード関数 (新規追加) ---
+            // --- ダウンロード関数 ---
 
             /**
              * html2canvas を使ってパス詳細をキャプチャする共通関数
@@ -1329,7 +1387,7 @@ Line 2"></textarea>
                 return html2canvas(captureTarget, options);
             }
 
-            /**
+/**
              * パス詳細をPNG画像としてダウンロード
              */
             async function downloadPassDetailAsImage() {
